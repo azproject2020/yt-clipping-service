@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from config import DOWNLOAD_DIR, TASK_CLEANUP_TIME, MAX_WORKERS
 from src.json_utils import load_tasks, save_tasks, load_keys
 from src.auth import check_memory_limit
-import yt_dlp, os, threading, json, time, shutil
+import yt_dlp, os, threading, json, time, shutil, subprocess
 from yt_dlp.utils import download_range_func
 
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
@@ -126,6 +126,9 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
         tasks[task_id].update(status='processing')
         save_tasks(tasks)
 
+        original_filename = None
+        output_filename = None
+
         if type.lower() == 'audio':
             format_option = f'{audio_format}/bestaudio/best'
             output_template = f'audio.%(ext)s'
@@ -145,35 +148,103 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
 
         ydl_opts = {
             'format': format_option,
-            'outtmpl': os.path.join(download_path, output_template),
+            'outtmpl': {
+                'default': os.path.join(download_path, output_template)
+            },
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
-            'cookiefile': 'youtube_cookies.txt'
+            'cookiefile': 'youtube_cookies.txt',
+            'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None] 
         }
 
         if tasks[task_id].get('start_time') or tasks[task_id].get('end_time'):
             start_time = tasks[task_id].get('start_time') or '00:00:00'
-            end_time = tasks[task_id].get('end_time') or '10:00:00'
+            end_time = tasks[task_id].get('end_time') or '10:00:00' # Consider setting a max duration or making it dynamic
 
             def time_to_seconds(time_str):
-                h, m, s = time_str.split(':')
-                return float(h) * 3600 + float(m) * 60 + float(s)
+                try:
+                    h, m, s = map(float, time_str.split(':'))
+                    return h * 3600 + m * 60 + s
+                except ValueError:
+                    # Handle potential malformed time strings
+                    print(f"Warning: Invalid time format '{time_str}', using default range.")
+                    return None, None # Indicate error
+                
             start_seconds = time_to_seconds(start_time)
             end_seconds = time_to_seconds(end_time)
 
-            ydl_opts['download_ranges'] = download_range_func(None, [(start_seconds, end_seconds)])
-            ydl_opts['force_keyframes_at_cuts'] = tasks[task_id].get('force_keyframes', False)
-        
+            if start_seconds is not None and end_seconds is not None:
+                ydl_opts['download_ranges'] = download_range_func(None, [(start_seconds, end_seconds)])
+                ydl_opts['force_keyframes_at_cuts'] = tasks[task_id].get('force_keyframes', True) # Default to True for cuts
+            else:
+                # Handle case where time conversion failed - maybe skip cutting?
+                print("Skipping time-based cutting due to invalid format.")
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            tasks = load_tasks()
+                info_dict = ydl.extract_info(url, download=True)
+                # yt-dlp >= 2023.06.22 returns the final filename in info_dict['requested_downloads'][0]['filepath']
+                original_filename = info_dict.get('requested_downloads', [{}])[0].get('filepath')
+                if not original_filename:
+                    # Fallback for older yt-dlp or unexpected structures
+                    downloaded_files = [f for f in os.listdir(download_path) if not f.endswith('.part') and not f.endswith('_compliant.mp4')]
+                    if downloaded_files:
+                        original_filename = os.path.join(download_path, downloaded_files[0])
+                    else:
+                         raise Exception("Could not determine downloaded file name.")
+
+            # --- Start FFmpeg Re-encoding --- 
+            if type.lower() == 'video':
+                print(f"Starting FFmpeg re-encoding for {original_filename}")
+                base, ext = os.path.splitext(os.path.basename(original_filename))
+                compliant_filename = f"{base}_compliant.mp4"
+                output_filepath = os.path.join(download_path, compliant_filename)
+
+                ffmpeg_command = [
+                    'ffmpeg',
+                    '-i', original_filename,
+                    '-c:v', 'libx264',
+                    '-b:v', '5000k',
+                    '-c:a', 'aac',
+                    '-b:a', '128k',
+                    '-strict', 'experimental', # For AAC compatibility
+                    '-y', # Overwrite output file if it exists
+                    output_filepath
+                ]
+                
+                try:
+                    print(f"Running FFmpeg: {' '.join(ffmpeg_command)}")
+                    process = subprocess.run(ffmpeg_command, check=True, capture_output=True, text=True)
+                    print("FFmpeg re-encoding completed successfully.")
+                    output_filename = output_filepath # Set the final output filename
+                    # Clean up original file
+                    try:
+                        os.remove(original_filename)
+                        print(f"Removed original file: {original_filename}")
+                    except OSError as e:
+                        print(f"Error removing original file {original_filename}: {e}")
+                except subprocess.CalledProcessError as e:
+                    print(f"FFmpeg error output:\n{e.stderr}")
+                    raise Exception(f"FFmpeg re-encoding failed: {e.stderr}") 
+                except Exception as e: # Catch other potential errors during ffmpeg step
+                    print(f"Unexpected error during FFmpeg processing: {e}")
+                    raise # Re-raise to be caught by outer handler
+            else:
+                # For audio or if re-encoding is skipped, use the original file
+                output_filename = original_filename
+            # --- End FFmpeg Re-encoding ---
+            
+            tasks = load_tasks() # Reload tasks in case state changed
             tasks[task_id].update(status='completed')
             tasks[task_id]['completed_time'] = datetime.now().isoformat()
-            tasks[task_id]['file'] = f'/files/{task_id}/' + os.listdir(download_path)[0]
+            # Use the final output filename (either original or compliant)
+            tasks[task_id]['file'] = f'/files/{task_id}/{os.path.basename(output_filename)}'
             save_tasks(tasks)
+            print(f"Task {task_id} completed. File: {tasks[task_id]['file']}")
+
         except Exception as e:
             handle_task_error(task_id, e)
     except Exception as e:
+        # Catch errors in initial task loading/saving
         handle_task_error(task_id, e)
 
 def get_live(task_id, url, type, start, duration, video_format="bestvideo", audio_format="bestaudio"):
