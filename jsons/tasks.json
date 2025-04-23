@@ -1,1 +1,16 @@
-{}
+{
+    "6JSXeTwQxn0vOJIM": {
+        "key_name": "admin",
+        "status": "completed",
+        "task_type": "get_video",
+        "url": "https://www.youtube.com/watch?v=fKG0ARXI3r4&list=WL&index=43&t=39s",
+        "start_time": "00:10:12",
+        "end_time": "00:10:55",
+        "force_keyframes": null,
+        "video_format": "bestvideo",
+        "audio_format": "bestaudio",
+        "error": "[Errno 17] File exists: '/app/downloads/6JSXeTwQxn0vOJIM'",
+        "completed_time": "2025-04-23T14:26:42.914451",
+        "file": "/files/6JSXeTwQxn0vOJIM/video_compliant.mp4"
+    }
+}

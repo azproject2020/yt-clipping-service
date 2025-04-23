@@ -96,8 +96,8 @@ def get_info(task_id, url):
         save_tasks(tasks)
 
         download_path = os.path.join(DOWNLOAD_DIR, task_id)
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
+        # Use exist_ok=True to avoid error if directory already exists
+        os.makedirs(download_path, exist_ok=True)
 
         ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': True, 'skip_download': True}
 
@@ -143,8 +143,8 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
             return
 
         download_path = os.path.join(DOWNLOAD_DIR, task_id)
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
+        # Use exist_ok=True to avoid error if directory already exists
+        os.makedirs(download_path, exist_ok=True)
 
         ydl_opts = {
             'format': format_option,
@@ -254,8 +254,8 @@ def get_live(task_id, url, type, start, duration, video_format="bestvideo", audi
         save_tasks(tasks)
         
         download_path = os.path.join(DOWNLOAD_DIR, task_id)
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
+        # Use exist_ok=True to avoid error if directory already exists
+        os.makedirs(download_path, exist_ok=True)
 
         current_time = int(time.time())
         start_time = current_time - start
