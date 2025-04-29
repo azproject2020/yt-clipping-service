@@ -49,13 +49,25 @@ curl -X POST \
   }'
 ```
 
-4. Get youtube_cookies.txt from chrome browser by
+4. **Update `youtube_cookies.txt` (Required for Private/Age-Restricted Videos):**
 
-```bash
-yt-dlp \ --cookies-from-browser chrome \ --cookies youtube_cookies.txt \ --skip-download https://www.youtube.com/watch\?v\=1XF-NG_35NE
+    `yt-dlp` needs valid cookies to access certain YouTube videos. The automatic method (`--cookies-from-browser`) can be unreliable due to YouTube rotating cookies. Use this manual method for better results:
 
-yt-dlp --cookies-from-browser chrome --cookies youtube_cookies.txt --skip-download https://www.youtube.com/watch\?v\=1XF-NG_35NE
-```
+    a. Install a browser extension for exporting cookies (e.g., "Get cookies.txt LOCALLY" or "EditThisCookie").
+
+    b. Open a **new Incognito/Private browsing window**.
+
+    c. Log in to `youtube.com` in that private window.
+
+    d. In the **same private window**, open a new blank tab, then close the original YouTube tab.
+
+    e. Use your installed extension to **export cookies for `youtube.com`** in **Netscape format**.
+
+    f. **Save/Paste** the exported text into the `youtube_cookies.txt` file in this project's root directory, overwriting any previous content.
+
+    g. **Close the private window immediately**.
+
+    h. **Restart the Docker container** to use the new cookies: `docker-compose up --build -d`
 
 ## Configuration
 

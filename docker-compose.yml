@@ -7,6 +7,7 @@ services:
       - ./downloads:/app/downloads
       - ./jsons:/app/jsons
       - ./config.py:/app/config.py
+      - ./youtube_cookies.txt:/app/youtube_cookies.txt
     environment:
       - FLASK_APP=src.server:app
       - FLASK_RUN_HOST=0.0.0.0

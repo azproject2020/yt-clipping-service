@@ -56,7 +56,7 @@ def check_and_get_size(url, video_format=None, audio_format=None):
             'no_warnings': True,
             'extract_flat': False,
             'skip_download': True,
-            'cookiefile': 'youtube_cookies.txt'
+            'cookiefile': '/app/youtube_cookies.txt'
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -152,7 +152,7 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
                 'default': os.path.join(download_path, output_template)
             },
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
-            'cookiefile': 'youtube_cookies.txt',
+            'cookiefile': '/app/youtube_cookies.txt',
             'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None] 
         }
 
@@ -273,7 +273,7 @@ def get_live(task_id, url, type, start, duration, video_format="bestvideo", audi
             'outtmpl': os.path.join(download_path, output_template),
             'download_ranges': lambda info, *args: [{'start_time': start_time, 'end_time': end_time,}],
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
-            'cookiefile': 'youtube_cookies.txt'
+            'cookiefile': '/app/youtube_cookies.txt'
         }
         
         try:
