@@ -1,16 +1,15 @@
 {
-    "6JSXeTwQxn0vOJIM": {
+    "evMJFoV1iffUtIYz": {
         "key_name": "admin",
-        "status": "completed",
+        "status": "error",
         "task_type": "get_video",
-        "url": "https://www.youtube.com/watch?v=fKG0ARXI3r4&list=WL&index=43&t=39s",
-        "start_time": "00:10:12",
-        "end_time": "00:10:55",
+        "url": "https://www.youtube.com/watch?v=giZC4pCqB4o",
+        "start_time": "00:2:00",
+        "end_time": "00:5:30",
         "force_keyframes": null,
         "video_format": "bestvideo",
         "audio_format": "bestaudio",
-        "error": "[Errno 17] File exists: '/app/downloads/6JSXeTwQxn0vOJIM'",
-        "completed_time": "2025-04-23T14:26:42.914451",
-        "file": "/files/6JSXeTwQxn0vOJIM/video_compliant.mp4"
+        "error": "ERROR: [youtube] giZC4pCqB4o: Sign in to confirm you\u2019re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies",
+        "completed_time": "2025-04-29T11:34:49.627006"
     }
 }
