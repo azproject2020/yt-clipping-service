@@ -1,13 +1,15 @@
 {
-    "lKtDuLw3hKZGJnyy": {
+    "LVkgAMs7BGA6iM08": {
         "key_name": "admin",
-        "status": "processing",
+        "status": "completed",
         "task_type": "get_video",
-        "url": "https://www.youtube.com/watch?v=zDmW5hJPsvQ&list=WL&index=8",
+        "url": "https://www.youtube.com/watch?v=zDmW5hJPsvQ&list=WL&index=9",
         "start_time": "00:49:44",
         "end_time": "00:51:40",
         "force_keyframes": null,
         "video_format": "bestvideo",
-        "audio_format": "bestaudio"
+        "audio_format": "bestaudio",
+        "completed_time": "2025-05-09T07:10:25.594158",
+        "file": "/files/LVkgAMs7BGA6iM08/video_compliant.mp4"
     }
 }
