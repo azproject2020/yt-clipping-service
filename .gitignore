@@ -11,3 +11,6 @@ youtube_cookies.txt
 
 # api keys
 api_keys.json
+
+# Tasks
+jsons/tasks.json

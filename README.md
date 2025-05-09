@@ -49,17 +49,11 @@ curl -X POST \
   }'
 ```
 
-4. **Update `youtube_cookies.txt` (Required for Private/Age-Restricted Videos):**
+4. **Update `youtube_cookies.txt`:**
 
     `yt-dlp` needs valid cookies to access certain YouTube videos. The automatic method (`--cookies-from-browser`) can be unreliable due to YouTube rotating cookies. Use this manual method for better results:
 
     a. Install a browser extension for exporting cookies (e.g., "Get cookies.txt LOCALLY" or "EditThisCookie").
-
-    b. Open a **new Incognito/Private browsing window**.
-
-    c. Log in to `youtube.com` in that private window.
-
-    d. In the **same private window**, open a new blank tab, then close the original YouTube tab.
 
     e. Use your installed extension to **export cookies for `youtube.com`** in **Netscape format**.
 
