@@ -153,7 +153,8 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
             },
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
             'cookiefile': '/app/youtube_cookies.txt',
-            'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None] 
+            'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None],
+            'noplaylist': True, # Prevent downloading entire playlist
         }
 
         if tasks[task_id].get('start_time') or tasks[task_id].get('end_time'):
