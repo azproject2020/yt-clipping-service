@@ -24,7 +24,7 @@ def export_youtube_cookies(db_path="/chrome-data/.config/google-chrome/Default/C
         def chrome_ts_to_unix(ts):
             return int(ts / 1_000_000 - 11644473600)
 
-        lines = ["# Netscape HTTP Cookie File " + datetime.date.strftime("%d/%m/%Y") + " \n"]
+        lines = ["# Netscape HTTP Cookie File\n# " + datetime.date.strftime("%d/%m/%Y") + "\n"]
         for row in cur.fetchall():
             host, path, secure, expires, name, value = row
             domain = "TRUE" if host.startswith('.') else "FALSE"
