@@ -33,10 +33,9 @@ def export_youtube_cookies(db_path="/chrome-data/.config/google-chrome/Default/C
             lines.append(f"{host}\t{domain}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n")
 
         with open(out_file, "w") as f:
-            print( lines )
             f.writelines(lines)
-
         print(f"Cookies exported to {out_file}")
+        return lines
     except Exception as e:
         print(f"Error exporting cookies: {e}")
 
