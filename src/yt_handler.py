@@ -212,6 +212,7 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
                 print("Skipping time-based cutting due to invalid format.")
 
         try:
+            export_youtube_cookies()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(url, download=True)
                 # yt-dlp >= 2023.06.22 returns the final filename in info_dict['requested_downloads'][0]['filepath']
@@ -307,9 +308,9 @@ def get_live(task_id, url, type, start, duration, video_format="bestvideo", audi
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
             'cookiefile': '/app/youtube_cookies.txt'
         }
-        export_youtube_cookies()
-        
+
         try:
+            export_youtube_cookies()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             tasks = load_tasks()
