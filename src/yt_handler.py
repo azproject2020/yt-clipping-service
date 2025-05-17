@@ -132,6 +132,7 @@ def get_info(task_id, url):
         ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': True, 'skip_download': True}
 
         try:
+            export_youtube_cookies()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
@@ -186,7 +187,6 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
             'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None],
             'noplaylist': True, # Prevent downloading entire playlist
         }
-        export_youtube_cookies()
 
         if tasks[task_id].get('start_time') or tasks[task_id].get('end_time'):
             start_time = tasks[task_id].get('start_time') or '00:00:00'
