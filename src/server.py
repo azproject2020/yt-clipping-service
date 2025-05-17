@@ -279,7 +279,7 @@ def get_keys():
 @app.route('/get_cookies', methods=['GET'])
 @auth.check_api_key('get_cookies')
 def get_cookies():
-    cookies = export_youtube_cookies()
+    cookies = yt_handler.export_youtube_cookies()
     return jsonify(cookies), 200
     
 @app.route('/check_permissions', methods=['POST'])
