@@ -11,6 +11,35 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
+def export_youtube_cookies(db_path="/chrome-data/.config/google-chrome/Default/Cookies", out_file="/app/youtube_cookies.txt"):
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT host_key, path, is_secure, expires_utc, name, value
+            FROM cookies
+            WHERE host_key LIKE '%youtube.com%'
+        """)
+
+        def chrome_ts_to_unix(ts):
+            return int(ts / 1_000_000 - 11644473600)
+
+        lines = ["# Netscape HTTP Cookie File\n"]
+        for row in cur.fetchall():
+            host, path, secure, expires, name, value = row
+            domain = "TRUE" if host.startswith('.') else "FALSE"
+            secure = "TRUE" if secure else "FALSE"
+            expires = chrome_ts_to_unix(expires)
+            lines.append(f"{host}\t{domain}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n")
+
+        with open(out_file, "w") as f:
+            f.writelines(lines)
+
+        print(f"Cookies exported to {out_file}")
+    except Exception as e:
+        print(f"Error exporting cookies: {e}")
+
+
 def get_format_size(info, format_id):
     for f in info.get('formats', []):
         if f.get('format_id') == format_id:
@@ -58,7 +87,8 @@ def check_and_get_size(url, video_format=None, audio_format=None):
             'skip_download': True,
             'cookiefile': '/app/youtube_cookies.txt'
         }
-        
+
+        export_youtube_cookies()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info['formats']
@@ -156,6 +186,7 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
             'progress_hooks': [lambda d: print(f'Download status: {d["_percent_str"]}') if d.get('status') == 'downloading' else None],
             'noplaylist': True, # Prevent downloading entire playlist
         }
+        export_youtube_cookies()
 
         if tasks[task_id].get('start_time') or tasks[task_id].get('end_time'):
             start_time = tasks[task_id].get('start_time') or '00:00:00'
@@ -276,6 +307,7 @@ def get_live(task_id, url, type, start, duration, video_format="bestvideo", audi
             'merge_output_format': 'mp4' if type.lower() == 'video' else None,
             'cookiefile': '/app/youtube_cookies.txt'
         }
+        export_youtube_cookies()
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
