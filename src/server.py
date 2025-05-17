@@ -276,6 +276,12 @@ def get_keys():
     keys = load_keys()
     return jsonify(keys), 200
 
+@app.route('/get_cookies', methods=['GET'])
+@auth.check_api_key('get_cookies')
+def get_cookies():
+    cookies = export_youtube_cookies()
+    return jsonify(cookies), 200
+    
 @app.route('/check_permissions', methods=['POST'])
 def check_permissions():
     data = request.json
