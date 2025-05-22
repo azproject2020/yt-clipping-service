@@ -8,6 +8,10 @@ import random
 import string
 import os
 import json
+import sqlite3
+from datetime import datetime
+import base64, hashlib
+from Crypto.Cipher import AES
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}) # Allow all origins
@@ -279,9 +283,159 @@ def get_keys():
 @app.route('/get_cookies', methods=['GET'])
 @auth.check_api_key('get_cookies')
 def get_cookies():
-    cookies = yt_handler.export_youtube_cookies()
-    return jsonify(cookies), 200
-    
+    try:
+
+      # import sqlite3, json, base64, hashlib
+      # from Crypto.Cipher import AES
+
+        # Пути к профилю Chrome (папка Default) и Local State
+        chrome_profile = "/chrome-data/.config/google-chrome/Default"
+        cookies_db_path = f"{chrome_profile}/Cookies"
+        local_state_path = "/chrome-data/.config/google-chrome/Local State"
+
+        # Читаем ключ шифрования из Local State, если он там есть (Chrome 80+ Windows)
+        def get_encryption_key_from_local_state():
+            try:
+                with open(local_state_path, "r") as ls_file:
+                    local_state = json.load(ls_file)
+                # Извлекаем и декодируем значение os_crypt.encrypted_key
+                encrypted_key_b64 = local_state.get("os_crypt", {}).get("encrypted_key")
+                if not encrypted_key_b64:
+                    return None
+                encrypted_key = base64.b64decode(encrypted_key_b64)  # DPAPI encrypted key (Windows)
+                # На Windows ключ зашифрован DPAPI и содержит префикс "DPAPI"
+                if encrypted_key.startswith(b"DPAPI"):
+                    encrypted_key = encrypted_key[5:]  # убираем строку "DPAPI"
+                # Попытка расшифровать с использованием CryptUnprotectData (только Windows)
+                try:
+                    import ctypes, ctypes.wintypes
+                    CryptUnprotectData = ctypes.windll.crypt32.CryptUnprotectData
+                    class DATA_BLOB(ctypes.Structure):
+                        _fields_ = [("cbData", ctypes.wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+                    blob_in = DATA_BLOB(len(encrypted_key), ctypes.create_string_buffer(encrypted_key))
+                    blob_out = DATA_BLOB()
+                    if CryptUnprotectData(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+                        # Считываем расшифрованные байты ключа
+                        ptr = ctypes.cast(blob_out.pbData, ctypes.c_void_p)
+                        key_bytes = ctypes.string_at(ptr.value, blob_out.cbData)
+                        return key_bytes
+                except Exception:
+                    return None
+            except Exception:
+                pass
+            return None
+
+        # Функция расшифровки значения cookie
+        def decrypt_cookie(encrypted_value, key=None):
+            """Decrypts an encrypted cookie value (bytes) using the provided key or derived static key."""
+            # Если задан ключ (для Windows scenario), иначе получаем через PBKDF2 с "peanuts"
+            if key is None:
+                # Статический пароль и соль для Linux fallback
+                password = b"peanuts"
+                salt = b"saltysalt"
+                # Длина ключа по умолчанию 16 (AES-128)
+                key_length = 16
+                # Определяем режим по формату encrypted_value
+                if encrypted_value[:3] in (b"v10", b"v11"):
+                    blob = encrypted_value
+                    # Если длина (без префикса 3 байта) не кратна 16, вероятно используем AES-256-GCM
+                    if (len(blob) - 3) % 16 != 0:
+                        key_length = 32  # 256-битный ключ для AES-256
+                # Генерируем ключ PBKDF2-HMAC-SHA1
+                key = hashlib.pbkdf2_hmac("sha1", password, salt, 1, dklen=key_length)
+            # Расшифровываем в зависимости от формата префикса
+            if encrypted_value[:3] in (b"v10", b"v11"):
+                blob = encrypted_value
+                # AES-256-GCM формат: [ префикс3 | 12байт nonce | ciphertext+tag ]
+                if (len(blob) - 3) % 16 != 0:
+                    nonce = blob[3:15]
+                    ciphertext = blob[15:-16]
+                    tag = blob[-16:]
+                    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+                    plaintext = cipher.decrypt(ciphertext)
+                    try:
+                        cipher.verify(tag)  # проверяем целостность
+                    except ValueError:
+                        raise Exception("Failed to verify GCM tag – wrong key or corrupted data")
+                    decrypted = plaintext
+                else:
+                    # AES-128-CBC формат: [префикс3 | ciphertext (IV фиксированный) ]
+                    iv = b" " * 16  # IV из 16 пробелов
+                    cipher = AES.new(key, AES.MODE_CBC, iv=iv)
+                    ciphertext = blob[3:]
+                    plaintext = cipher.decrypt(ciphertext)
+                    # Удаляем PKCS#5 padding
+                    pad_len = plaintext[-1]
+                    decrypted = plaintext[:-pad_len]
+                    # Удаляем префикс SHA256 домена (32 байта), если он присутствует
+                    if len(decrypted) >= 32:
+                        decrypted = decrypted[32:]
+                return decrypted.decode("utf-8", errors="ignore")
+            else:
+                # Если префикса нет (возможный нешифрованный сценарий или иной формат)
+                return encrypted_value.decode("utf-8", errors="ignore")
+
+        # Открываем соединение с базой cookies
+        conn = sqlite3.connect(cookies_db_path)
+        cursor = conn.cursor()
+        # Фильтруем по домену youtube.com (включая субдомены)
+        cursor.execute("""
+            SELECT host_key, path, is_secure, expires_utc, name, value, encrypted_value, has_expires 
+            FROM cookies 
+            WHERE host_key = 'youtube.com' OR host_key LIKE '%.youtube.com'
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Попытка получить мастер-ключ (для Windows; на Linux обычно None)
+        master_key = get_encryption_key_from_local_state()
+
+        # Подготавливаем файл для вывода cookies
+        output_lines = []
+        output_lines.append("# Netscape HTTP Cookie File")
+        output_lines.append(f"# This file was generated by a script on Chrome profile: {chrome_profile}")
+        for host_key, path, is_secure, expires_utc, name, value, enc_value, has_expires in rows:
+            # Определяем актуальное значение cookie (раскодированное)
+            if enc_value not in (None, b""):
+                try:
+                    # sqlite3 может вернуть BLOB как memoryview – преобразуем в bytes
+                    if not isinstance(enc_value, (bytes, bytearray)):
+                        enc_bytes = bytes(enc_value)
+                    else:
+                        enc_bytes = enc_value
+                    cookie_val = decrypt_cookie(enc_bytes, key=master_key)
+                except Exception as e:
+                    cookie_val = ""  # не удалось расшифровать
+            else:
+                cookie_val = value or ""
+            # Определяем флаг субдоменов и формат домена в файле
+            include_subdomains = "FALSE"
+            domain_out = host_key
+            if host_key.startswith("."):
+                include_subdomains = "TRUE"
+            # Если домен без точки, оставляем include_subdomains FALSE (cookie для точного хоста)
+            # Формируем флаг secure
+            secure_flag = "TRUE" if is_secure else "FALSE"
+            # Время истечения (UTC). Преобразуем из формата Chrome (микросекунды с 1601) в Unix time
+            if has_expires and expires_utc:
+                # Chrome stores timestamps as microseconds since 1601-01-01
+                expires_unix = (expires_utc - 11644473600000000) // 1000000
+            else:
+                expires_unix = 0  # сессионный cookie
+            # Собираем строку cookie
+            line = f"{domain_out}\t{include_subdomains}\t{path}\t{secure_flag}\t{expires_unix}\t{name}\t{cookie_val}"
+            output_lines.append(line)
+            #print(line)
+
+        # Запись в файл cookies.txt
+        with open("/app/youtube_cookies.txt", "w") as f:
+            f.write("\n".join(output_lines))
+
+#        return f"\n".join(output_lines), 200
+        return 'ok', 200
+    except Exception as e:
+        return f"Error exporting cookies: {e}", 500
+
 @app.route('/check_permissions', methods=['POST'])
 def check_permissions():
     data = request.json

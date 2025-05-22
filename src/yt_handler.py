@@ -5,40 +5,12 @@ from src.json_utils import load_tasks, save_tasks, load_keys
 from src.auth import check_memory_limit
 import yt_dlp, os, threading, json, time, shutil, subprocess
 from yt_dlp.utils import download_range_func
+import sqlite3
 
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
-
-def export_youtube_cookies(db_path="/chrome-data/.config/google-chrome/Default/Cookies", out_file="/app/youtube_cookies.txt"):
-    try:
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT host_key, path, is_secure, expires_utc, name, value
-            FROM cookies
-            WHERE host_key LIKE '%youtube.com%'
-        """)
-
-        def chrome_ts_to_unix(ts):
-            return int(ts / 1_000_000 - 11644473600)
-
-        lines = ["# Netscape HTTP Cookie File\n# " + datetime.date.strftime("%d/%m/%Y") + "\n"]
-        for row in cur.fetchall():
-            host, path, secure, expires, name, value = row
-            domain = "TRUE" if host.startswith('.') else "FALSE"
-            secure = "TRUE" if secure else "FALSE"
-            expires = chrome_ts_to_unix(expires)
-            lines.append(f"{host}\t{domain}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n")
-
-        with open(out_file, "w") as f:
-            f.writelines(lines)
-        print(f"Cookies exported to {out_file}")
-        return lines
-    except Exception as e:
-        print(f"Error exporting cookies: {e}")
-
 
 def get_format_size(info, format_id):
     for f in info.get('formats', []):
@@ -88,7 +60,6 @@ def check_and_get_size(url, video_format=None, audio_format=None):
             'cookiefile': '/app/youtube_cookies.txt'
         }
 
-        export_youtube_cookies()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info['formats']
@@ -129,13 +100,11 @@ def get_info(task_id, url):
         # Use exist_ok=True to avoid error if directory already exists
         os.makedirs(download_path, exist_ok=True)
 
-        ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': True, 'skip_download': True}
+        ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': True, 'skip_download': True,'cookiefile': '/app/youtube_cookies.txt'}
 
         try:
-            export_youtube_cookies()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-
             info_file = os.path.join(DOWNLOAD_DIR, task_id, f'info.json')
             os.makedirs(os.path.dirname(info_file), exist_ok=True)
             with open(info_file, 'w') as f:
@@ -212,7 +181,7 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
                 print("Skipping time-based cutting due to invalid format.")
 
         try:
-            export_youtube_cookies()
+            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(url, download=True)
                 # yt-dlp >= 2023.06.22 returns the final filename in info_dict['requested_downloads'][0]['filepath']
@@ -239,7 +208,10 @@ def get(task_id, url, type, video_format="bestvideo", audio_format="bestaudio"):
                     '-b:v', '5000k',
                     '-c:a', 'aac',
                     '-b:a', '128k',
-                    '-strict', 'experimental', # For AAC compatibility
+                   #'-strict', 'experimental', # For AAC compatibility 
+                    '-strict', '-2', 
+                    # Использование флага -strict experimental для AAC является устаревшим. 
+                    # Современные версии FFmpeg часто не требуют его, либо более подходящим будет -strict -2
                     '-y', # Overwrite output file if it exists
                     output_filepath
                 ]
@@ -310,7 +282,7 @@ def get_live(task_id, url, type, start, duration, video_format="bestvideo", audi
         }
 
         try:
-            export_youtube_cookies()
+            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             tasks = load_tasks()

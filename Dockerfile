@@ -10,8 +10,8 @@ RUN apt-get update && \
 # Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
- && pip install --no-cache-dir --upgrade yt-dlp  
-
+ && pip install --no-cache-dir --upgrade yt-dlp \
+ && pip install pycryptodome
 COPY . .
 
 ENV FLASK_APP=src.server:app \
